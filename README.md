@@ -105,13 +105,14 @@ pool.close()
 ```
 
 `sandbox.sandbox_id` is the ephemeral sandbox handle. `task_id` is optional
-caller metadata for correlating logs with an RL episode or eval row; it is not
-required and it is not the sandbox identifier.
+caller metadata accepted by `pool.allocate(task_id="episode-...")` for
+correlating service logs with an RL episode or eval row. It is not required and
+it is not the sandbox identifier.
 
 For long-running commands or interactive programs, use a process handle. The
-current API is chunked polling: start the process, read available stdout/stderr,
-write stdin when the process was launched as interactive, close stdin when
-appropriate, then collect the exit code.
+current client API is not a continuous stream. It is chunked polling: start the
+process, read available stdout/stderr, write stdin when the process was launched
+as interactive, close stdin when appropriate, then collect the exit code.
 
 ```python
 with pool.allocate() as sandbox:
@@ -149,7 +150,10 @@ source .firecracker-env
 PYTHONPATH=scripts:. python3 scripts/firecracker_pool_service.py \
   --backend firecracker \
   --listen 127.0.0.1:8765 \
+  --pool-id default \
+  --profile python-coding \
   --pool-size 8 \
+  --auto-create-pool \
   --firecracker "$FIRECRACKER_BIN" \
   --kernel "$FIRECRACKER_KERNEL" \
   --rootfs "$FIRECRACKER_ROOTFS" \
@@ -162,20 +166,17 @@ Use the same sandbox API through the service client:
 from firecracker_rl_sandbox import ServiceClient
 
 client = ServiceClient("http://127.0.0.1:8765")
-pool = client.create_pool(
-    pool_id="default",
-    profile="python-coding",
-    size=8,
-    mem_mib=768,
-    vcpus=1,
-    # network="egress",  # uncomment to allow network egress
-)
+pool = client.pool("default", profile="python-coding")
 
 with pool.allocate() as sandbox:
     result = sandbox.run("pwd; python3 -m pytest -q tests")
     print(result.exit_code)
     print(result.stdout_text)
 ```
+
+Use `client.create_pool(...)` when the service should provision another pool at
+runtime, for example a different profile or capacity target. That call boots VM
+capacity; `client.pool(...)` is just a handle to an existing service-owned pool.
 
 Useful service endpoints:
 
@@ -220,6 +221,10 @@ network egress. The benchmark created the pool, allocated 100 sandboxes through
 the service API, ran `python3 -c 'print(1)'` in all sandboxes, released all
 sandboxes, and closed the pool.
 
+Pool creation, allocation, and command execution are parallel. Release requests
+are issued concurrently by the benchmark client, but the current service
+serializes reset/release inside a pool.
+
 | phase | wall time |
 | --- | ---: |
 | create 100-VM pool | 2.741 s |
@@ -260,8 +265,6 @@ the profile and rootfs builder as needed. More details are in
   request/response runs and process-handle polling.
 - Output buffers are bounded in the guest-agent path; final polling/streaming
   semantics and process-slot limits still need hardening.
-- Intended-distribution trace coverage is deferred. It should broaden
-  confidence later, but it is not blocking productionization work.
 
 ## Development
 

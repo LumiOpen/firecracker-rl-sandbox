@@ -698,7 +698,10 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run a node-local Firecracker pool service.")
     parser.add_argument("--listen", default="127.0.0.1:8765")
     parser.add_argument("--backend", choices=("firecracker", "mock"), default="firecracker")
+    parser.add_argument("--pool-id", default="default")
+    parser.add_argument("--profile", default="python-coding")
     parser.add_argument("--pool-size", type=int, default=64)
+    parser.add_argument("--auto-create-pool", action="store_true")
     parser.add_argument("--firecracker")
     parser.add_argument("--kernel")
     parser.add_argument("--rootfs")
@@ -718,8 +721,32 @@ def main() -> int:
         return run_self_test(args)
     host, raw_port = args.listen.rsplit(":", 1)
     service = PoolService(args)
+    startup_pool = None
+    if args.auto_create_pool:
+        startup_pool = service.create_pool(
+            {
+                "pool_id": args.pool_id,
+                "profile": args.profile,
+                "size": args.pool_size,
+                "backend": args.backend,
+                "mem_mib": args.mem_mib,
+                "vcpus": args.vcpus,
+            }
+        )
     server = JsonServer((host, int(raw_port)), Handler, service, args.auth_token, args.quiet)
-    print(json.dumps({"event": "listening", "listen": args.listen, "backend": args.backend, "auth": bool(args.auth_token)}, sort_keys=True), flush=True)
+    print(
+        json.dumps(
+            {
+                "event": "listening",
+                "listen": args.listen,
+                "backend": args.backend,
+                "auth": bool(args.auth_token),
+                "startup_pool": startup_pool,
+            },
+            sort_keys=True,
+        ),
+        flush=True,
+    )
     try:
         server.serve_forever()
     finally:
