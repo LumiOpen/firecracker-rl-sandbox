@@ -71,8 +71,22 @@ export FIRECRACKER_RUN_DIR="${BASE_ROOT}/run"
 
 `firecracker_prepare_artifacts.py` downloads the Firecracker executable,
 downloads a known-good default guest kernel, and composes a basic
-`python-coding` rootfs from `image_profiles/python-coding.yaml`. To use your
-own artifacts instead:
+`python-coding` rootfs from `image_profiles/python-coding.yaml`.
+`--env-output .firecracker-env` writes a shell fragment that exports:
+
+- `FIRECRACKER_BIN`: path to the Firecracker VMM executable.
+- `FIRECRACKER_KERNEL`: path to the guest kernel image.
+- `FIRECRACKER_ROOTFS`: path to the ext4 guest root filesystem.
+- `FIRECRACKER_ARTIFACT_BASE`: base directory used by the artifact helper.
+
+`LocalPool` reads `FIRECRACKER_BIN`, `FIRECRACKER_KERNEL`, and
+`FIRECRACKER_ROOTFS` from the environment unless you pass `firecracker_bin=...`,
+`kernel=...`, and `rootfs=...` directly. `FIRECRACKER_RUN_DIR` is also read from
+the environment if `run_dir=...` is not provided. The standalone service uses
+the same artifact paths, but they are passed as CLI flags in the service command
+below.
+
+To use your own artifacts instead:
 
 ```bash
 PYTHONPATH=scripts:. python3 scripts/firecracker_prepare_artifacts.py \
@@ -230,9 +244,12 @@ serializes reset/release inside a pool.
 | create 100-VM pool | 2.741 s |
 | allocate 100 sandboxes | 64 ms |
 | run 100 Python commands | 173 ms |
-| release/reset 100 sandboxes | 7.981 s |
+| release/reset 100 sandboxes* | 7.981 s |
 | close pool | 11.763 s |
 | total lifecycle | 23.793 s |
+
+*: There is currently a temporary lock around this operation to avoid a
+concurrency bug, causing requests to serialize.
 
 Per-operation p50/p90/p99 latencies from the same run:
 
@@ -240,7 +257,7 @@ Per-operation p50/p90/p99 latencies from the same run:
 | --- | ---: | ---: | ---: |
 | allocate sandbox | 7.4 ms | 9.7 ms | 11.0 ms |
 | `python3 -c 'print(1)'` | 131.1 ms | 144.0 ms | 151.7 ms |
-| release/reset sandbox | 4.130 s | 7.172 s | 7.872 s |
+| release/reset sandbox* | 4.130 s | 7.172 s | 7.872 s |
 
 The run completed with 0 failures and cleaned up all VM runtime directories.
 
@@ -255,7 +272,8 @@ Profiles live in `image_profiles/`:
 The current builder path is intentionally simple: use
 `scripts/firecracker_prepare_artifacts.py` for a default image, then customize
 the profile and rootfs builder as needed. More details are in
-`docs/firecracker-image-build-tooling.md`.
+`docs/firecracker-image-build-tooling.md`. Artifact and image composition
+ergonomics are still early and should be simplified.
 
 ## Current Rough Edges
 
