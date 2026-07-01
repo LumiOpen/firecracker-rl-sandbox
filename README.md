@@ -212,6 +212,33 @@ for package-heavy Python tasks, compilers, or larger in-guest corpora. The pool
 owner should size `pool.size * mem_mib` against the Slurm cgroup memory limit
 with room for VMM RSS, rootfs page cache, and service overhead.
 
+## Benchmark Snapshot
+
+One LUMI `dev-g` node run on July 1, 2026 used 32 host CPUs, a 128 GiB Slurm
+memory allocation, 100 Firecracker sandboxes, `mem_mib=768`, `vcpus=1`, and no
+network egress. The benchmark created the pool, allocated 100 sandboxes through
+the service API, ran `python3 -c 'print(1)'` in all sandboxes, released all
+sandboxes, and closed the pool.
+
+| phase | wall time |
+| --- | ---: |
+| create 100-VM pool | 2.741 s |
+| allocate 100 sandboxes | 64 ms |
+| run 100 Python commands | 173 ms |
+| release/reset 100 sandboxes | 7.981 s |
+| close pool | 11.763 s |
+| total lifecycle | 23.793 s |
+
+Per-operation p50/p90/p99 latencies from the same run:
+
+| operation | p50 | p90 | p99 |
+| --- | ---: | ---: | ---: |
+| allocate sandbox | 7.4 ms | 9.7 ms | 11.0 ms |
+| `python3 -c 'print(1)'` | 131.1 ms | 144.0 ms | 151.7 ms |
+| release/reset sandbox | 4.130 s | 7.172 s | 7.872 s |
+
+The run completed with 0 failures and cleaned up all VM runtime directories.
+
 ## Images And Profiles
 
 Profiles live in `image_profiles/`:
