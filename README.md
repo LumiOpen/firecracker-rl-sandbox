@@ -192,24 +192,8 @@ Use `client.create_pool(...)` when the service should provision another pool at
 runtime, for example a different profile or capacity target. That call boots VM
 capacity; `client.pool(...)` is just a handle to an existing service-owned pool.
 
-Useful service endpoints:
-
-```text
-GET  /healthz
-GET  /readyz
-GET  /varz
-GET  /metrics
-POST /v1/pools
-POST /v1/sandboxes
-POST /v1/sandboxes/{sandbox_id}/run
-POST /v1/sandboxes/{sandbox_id}/processes
-POST /v1/sandboxes/{sandbox_id}/processes/{process_id}/read
-POST /v1/sandboxes/{sandbox_id}/processes/{process_id}/write
-POST /v1/sandboxes/{sandbox_id}/processes/{process_id}/status
-POST /v1/sandboxes/{sandbox_id}/processes/{process_id}/close_stdin
-POST /v1/sandboxes/{sandbox_id}/processes/{process_id}/cancel
-POST /v1/sandboxes/{sandbox_id}/release
-```
+The service API is described in `docs/openapi.yaml`, which can be loaded by
+Swagger UI, Redoc, or other OpenAPI tooling.
 
 The service binds to loopback by default. Require deployment-specific auth and
 network controls before binding it to anything broader than `127.0.0.1`.
@@ -218,14 +202,20 @@ network controls before binding it to anything broader than `127.0.0.1`.
 
 The examples spell out the current defaults:
 
-- `mem_mib=768`: configured guest memory per sandbox.
+- `mem_mib=768`: configured guest memory limit per sandbox.
 - `vcpus=1`: configured guest vCPU count per sandbox.
 - `network` omitted: no network egress by default.
 
-These are conservative defaults for command-execution rollouts. Increase memory
-for package-heavy Python tasks, compilers, or larger in-guest corpora. The pool
-owner should size `pool.size * mem_mib` against the Slurm cgroup memory limit
-with room for VMM RSS, rootfs page cache, and service overhead.
+These are conservative defaults for command-execution rollouts. `mem_mib` is
+not an up-front host memory reservation; it is the memory size visible inside
+the guest. Host memory is consumed as the VMM, guest, filesystem cache, and
+workload actually touch pages, so configured guest memory can be intentionally
+oversubscribed. Increase memory for package-heavy Python tasks, compilers, or
+larger in-guest corpora, but size a node or Slurm allocation against expected
+working set plus headroom rather than blindly summing `pool.size * mem_mib`.
+If guests collectively touch more memory than the host or cgroup can provide,
+the kernel or Slurm cgroup can still kill processes; that failure behavior needs
+explicit characterization before relying on aggressive overcommit in production.
 
 ## Benchmark Snapshot
 
@@ -233,7 +223,10 @@ One LUMI `dev-g` node run on July 1, 2026 used 32 host CPUs, a 128 GiB Slurm
 memory allocation, 100 Firecracker sandboxes, `mem_mib=768`, `vcpus=1`, and no
 network egress. The benchmark created the pool, allocated 100 sandboxes through
 the service API, ran `python3 -c 'print(1)'` in all sandboxes, released all
-sandboxes, and closed the pool.
+sandboxes, and closed the pool. The configured guest memory total was
+76,800 MiB, while observed idle Firecracker RSS at pool-ready was about
+7.0 GiB total. Per-VM idle RSS for the Python profile was about 71 MiB mean,
+71 MiB p50, 73 MiB p90, and 74 MiB p99.
 
 Pool creation, allocation, and command execution are parallel. Release requests
 are issued concurrently by the benchmark client, but the current service

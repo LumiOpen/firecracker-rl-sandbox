@@ -1,0 +1,582 @@
+openapi: 3.1.0
+info:
+  title: Firecracker RL Sandbox Service API
+  version: 0.1.0
+  summary: Node-local HTTP API for Firecracker-backed sandbox pools.
+  description: |
+    The service owns Firecracker pool, sandbox, and process lifecycle on a host
+    with KVM access. The API is intended for harnesses that allocate a sandbox,
+    run commands, collect stdout/stderr/exit status, and release the sandbox
+    back to a pool.
+servers:
+  - url: http://127.0.0.1:8765
+security:
+  - bearerAuth: []
+  - {}
+paths:
+  /healthz:
+    get:
+      summary: Liveness check.
+      responses:
+        "200":
+          description: Service is alive.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+  /readyz:
+    get:
+      summary: Readiness check.
+      responses:
+        "200":
+          description: Service readiness and pool status.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /varz:
+    get:
+      summary: JSON service state and counters.
+      responses:
+        "200":
+          description: Service variables.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /metrics:
+    get:
+      summary: Prometheus text metrics.
+      responses:
+        "200":
+          description: Prometheus metrics.
+          content:
+            text/plain:
+              schema:
+                type: string
+  /v1/pools:
+    post:
+      summary: Create a sandbox pool.
+      description: Boots or configures capacity for a pool. For simple service use, prefer starting the service with an auto-created default pool and using a pool handle from the client.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePoolRequest"
+      responses:
+        "200":
+          description: Pool created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreatePoolResponse"
+        "409":
+          $ref: "#/components/responses/Error"
+  /v1/pools/{pool_id}:
+    get:
+      summary: Get pool status.
+      parameters:
+        - $ref: "#/components/parameters/PoolId"
+      responses:
+        "200":
+          description: Pool status.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PoolStatusResponse"
+        "404":
+          $ref: "#/components/responses/Error"
+    delete:
+      summary: Drain and close a pool.
+      parameters:
+        - $ref: "#/components/parameters/PoolId"
+      responses:
+        "200":
+          description: Pool closed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+        "404":
+          $ref: "#/components/responses/Error"
+  /v1/sandboxes:
+    post:
+      summary: Allocate a sandbox from a pool.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSandboxRequest"
+      responses:
+        "200":
+          description: Sandbox allocated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateSandboxResponse"
+        "404":
+          $ref: "#/components/responses/Error"
+        "503":
+          $ref: "#/components/responses/Error"
+  /v1/sandboxes/{sandbox_id}/run:
+    post:
+      summary: Run a command to completion.
+      parameters:
+        - $ref: "#/components/parameters/SandboxId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RunCommandRequest"
+      responses:
+        "200":
+          description: Command result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandResult"
+        "404":
+          $ref: "#/components/responses/Error"
+  /v1/sandboxes/{sandbox_id}/processes:
+    post:
+      summary: Start a long-running process.
+      description: Starts a process and returns a process id. The current API uses polling plus explicit stdin writes rather than a continuous stream.
+      parameters:
+        - $ref: "#/components/parameters/SandboxId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StartProcessRequest"
+      responses:
+        "200":
+          description: Process started.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StartProcessResponse"
+        "404":
+          $ref: "#/components/responses/Error"
+  /v1/sandboxes/{sandbox_id}/processes/{process_id}/read:
+    post:
+      summary: Read available process output.
+      parameters:
+        - $ref: "#/components/parameters/SandboxId"
+        - $ref: "#/components/parameters/ProcessId"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReadProcessRequest"
+      responses:
+        "200":
+          description: Available stdout/stderr and current exit state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandResult"
+        "404":
+          $ref: "#/components/responses/Error"
+  /v1/sandboxes/{sandbox_id}/processes/{process_id}/write:
+    post:
+      summary: Write bytes to process stdin.
+      parameters:
+        - $ref: "#/components/parameters/SandboxId"
+        - $ref: "#/components/parameters/ProcessId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WriteProcessRequest"
+      responses:
+        "200":
+          description: Stdin write result.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "404":
+          $ref: "#/components/responses/Error"
+  /v1/sandboxes/{sandbox_id}/processes/{process_id}/close_stdin:
+    post:
+      summary: Close process stdin.
+      parameters:
+        - $ref: "#/components/parameters/SandboxId"
+        - $ref: "#/components/parameters/ProcessId"
+      responses:
+        "200":
+          description: Stdin close result.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /v1/sandboxes/{sandbox_id}/processes/{process_id}/status:
+    post:
+      summary: Get process status.
+      parameters:
+        - $ref: "#/components/parameters/SandboxId"
+        - $ref: "#/components/parameters/ProcessId"
+      responses:
+        "200":
+          description: Process status.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /v1/sandboxes/{sandbox_id}/processes/{process_id}/cancel:
+    post:
+      summary: Cancel a process.
+      parameters:
+        - $ref: "#/components/parameters/SandboxId"
+        - $ref: "#/components/parameters/ProcessId"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CancelProcessRequest"
+      responses:
+        "200":
+          description: Cancel result.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /v1/sandboxes/{sandbox_id}/reset:
+    post:
+      summary: Reset a sandbox while keeping the lease.
+      parameters:
+        - $ref: "#/components/parameters/SandboxId"
+      responses:
+        "200":
+          description: Reset result.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /v1/sandboxes/{sandbox_id}/release:
+    post:
+      summary: Release a sandbox back to its pool.
+      parameters:
+        - $ref: "#/components/parameters/SandboxId"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReleaseSandboxRequest"
+      responses:
+        "200":
+          description: Sandbox released.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /v1/sandboxes/{sandbox_id}/transcript:
+    get:
+      summary: Get sandbox command transcript.
+      parameters:
+        - $ref: "#/components/parameters/SandboxId"
+      responses:
+        "200":
+          description: Transcript.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /v1/sandboxes/{sandbox_id}/metrics:
+    get:
+      summary: Get sandbox metrics.
+      parameters:
+        - $ref: "#/components/parameters/SandboxId"
+      responses:
+        "200":
+          description: Per-sandbox metrics.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Optional bearer token configured by FIRECRACKER_POOL_TOKEN or --auth-token.
+  parameters:
+    PoolId:
+      name: pool_id
+      in: path
+      required: true
+      schema:
+        type: string
+    SandboxId:
+      name: sandbox_id
+      in: path
+      required: true
+      schema:
+        type: string
+    ProcessId:
+      name: process_id
+      in: path
+      required: true
+      schema:
+        type: string
+  responses:
+    Error:
+      description: Error response.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+  schemas:
+    HealthResponse:
+      type: object
+      required: [ok, uptime_s]
+      properties:
+        ok:
+          type: boolean
+        uptime_s:
+          type: number
+    OkResponse:
+      type: object
+      required: [ok]
+      properties:
+        ok:
+          type: boolean
+      additionalProperties: true
+    ErrorResponse:
+      type: object
+      required: [ok, error]
+      properties:
+        ok:
+          const: false
+        error:
+          type: string
+    CreatePoolRequest:
+      type: object
+      properties:
+        pool_id:
+          type: string
+          default: default
+        profile:
+          type: string
+          default: python-coding
+        size:
+          type: integer
+          minimum: 1
+          default: 1
+        backend:
+          type: string
+          enum: [firecracker, mock]
+        mem_mib:
+          type: integer
+          minimum: 1
+          default: 768
+        vcpus:
+          type: integer
+          minimum: 1
+          default: 1
+        network:
+          type: string
+          enum: [none, egress]
+          default: none
+    CreatePoolResponse:
+      type: object
+      required: [pool_id, status]
+      properties:
+        pool_id:
+          type: string
+        status:
+          type: object
+          additionalProperties: true
+    PoolStatusResponse:
+      type: object
+      required: [pool_id, draining, backend, status, metrics]
+      properties:
+        pool_id:
+          type: string
+        draining:
+          type: boolean
+        backend:
+          type: string
+        status:
+          type: object
+          additionalProperties: true
+        metrics:
+          type: object
+          additionalProperties:
+            type: integer
+    CreateSandboxRequest:
+      type: object
+      required: [pool_id]
+      properties:
+        pool_id:
+          type: string
+        profile:
+          type: string
+          default: python-coding
+        task_id:
+          type: string
+          description: Optional caller metadata for log correlation. Not a sandbox identifier.
+        queue_timeout_ms:
+          type: integer
+          minimum: 0
+          default: 30000
+    CreateSandboxResponse:
+      type: object
+      required: [sandbox_id, session_id, pool_id]
+      properties:
+        sandbox_id:
+          type: string
+        session_id:
+          type: string
+        pool_id:
+          type: string
+        vm_id:
+          type: string
+        queue_wait_ms:
+          type: number
+    RunCommandRequest:
+      type: object
+      required: [command]
+      properties:
+        command:
+          type: string
+        cwd:
+          type: string
+          default: /workspace
+        env:
+          type: object
+          additionalProperties:
+            type: string
+        stdin_b64:
+          type: string
+          contentEncoding: base64
+        timeout_ms:
+          type: integer
+          minimum: 0
+          default: 0
+        stdout_limit:
+          type: integer
+          minimum: 0
+        stderr_limit:
+          type: integer
+          minimum: 0
+    CommandResult:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        exit_code:
+          type:
+            - integer
+            - "null"
+        stdout_b64:
+          type: string
+          contentEncoding: base64
+        stderr_b64:
+          type: string
+          contentEncoding: base64
+        stdout_bytes_full:
+          type: integer
+        stderr_bytes_full:
+          type: integer
+        stdout_truncated:
+          type: boolean
+        stderr_truncated:
+          type: boolean
+        stdout_blocked:
+          type: boolean
+        stderr_blocked:
+          type: boolean
+        timeout:
+          type: boolean
+        kill_reason:
+          type:
+            - string
+            - "null"
+        command_roundtrip_ms:
+          type: number
+        elapsed_ms:
+          type: number
+      additionalProperties: true
+    StartProcessRequest:
+      type: object
+      required: [command]
+      properties:
+        command:
+          type: string
+        cwd:
+          type: string
+          default: /workspace
+        env:
+          type: object
+          additionalProperties:
+            type: string
+        interactive:
+          type: boolean
+          default: false
+    StartProcessResponse:
+      type: object
+      required: [process_id]
+      properties:
+        ok:
+          type: boolean
+        process_id:
+          type: string
+        handle:
+          type: string
+        pid:
+          type: integer
+      additionalProperties: true
+    ReadProcessRequest:
+      type: object
+      properties:
+        wait_ms:
+          type: integer
+          minimum: 0
+          default: 0
+        stdout_limit:
+          type: integer
+          minimum: 0
+        stderr_limit:
+          type: integer
+          minimum: 0
+    WriteProcessRequest:
+      type: object
+      properties:
+        stdin_b64:
+          type: string
+          contentEncoding: base64
+        data_b64:
+          type: string
+          contentEncoding: base64
+      anyOf:
+        - required: [stdin_b64]
+        - required: [data_b64]
+    CancelProcessRequest:
+      type: object
+      properties:
+        signal:
+          type: integer
+          default: 15
+    ReleaseSandboxRequest:
+      type: object
+      properties:
+        strategy:
+          type: string
+          enum: [auto, hard]
+          default: auto

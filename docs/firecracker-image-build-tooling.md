@@ -1,21 +1,23 @@
 # Firecracker Image Build Tooling
 
-Phase 9 makes image construction an explicit production interface instead of an
-implicit artifact left behind by a benchmark run.
+Image construction should be a reproducible interface, not an implicit artifact
+left behind by a benchmark run. A sandbox deployment should be able to name a
+profile, build or fetch the required artifacts, inspect a manifest, and pass the
+artifacts to `LocalPool` or the service.
 
 ## Contract
 
 - The host kernel does not need to match the guest kernel. The guest kernel must
   match the VM architecture and include the Firecracker devices used by the
-  profile: serial, virtio block, and virtio-vsock for the offline MVP.
+  profile: serial, virtio block, and virtio-vsock for the current command
+  channel.
 - Base images are portable across hosts with compatible architecture and KVM
   support. Snapshots are more constrained and should be treated as tied to the
   Firecracker version, CPU template/features, memory size, device model, kernel,
   and rootfs identity.
-- The production reset model should be an immutable base OS plus a disposable
-  writable workspace or overlay. The current LUMI image already mounts
-  `/workspace` as tmpfs and reseeds it on reset; Phase 9 formalizes that as a
-  profile field.
+- The reset model should be an immutable base OS plus a disposable writable
+  workspace or overlay. The current profile model treats workspace behavior as
+  part of the image/profile contract.
 - The primary distribution interface should be the profile, build script, build
   log, and manifest. Checksums are useful validation metadata, not the user
   workflow.
@@ -47,18 +49,11 @@ python3 scripts/firecracker_image_builder.py manifest \
 ```
 
 The current implementation validates and plans the profile contract. The emitted
-build script records the requested package set and delegates to the existing
-Phase 5 rootfs composer backend. The next backend should consume
-`FIRECRACKER_IMAGE_PROFILE_JSON` directly so packages and modes are not embedded
-in Python constants.
+build script records the requested package set and delegates to the current
+rootfs composer backend. The artifact helper used by the quick start,
+`scripts/firecracker_prepare_artifacts.py`, fetches a Firecracker binary and
+guest kernel, then composes a default rootfs and writes an environment file for
+the Python APIs or service command.
 
-## Open Production Work
-
-- Move package roots out of `firecracker_lumi_phase5.py` and into image
-  profiles.
-- Add a real `build` subcommand that consumes profile JSON directly.
-- Add a profile-level boot smoke: command agent ready, workspace reset, package
-  inventory, and no unintended host mounts.
-- Add optional overlay/block workspace modes for workloads that need larger or
-  persistent scratch inside a session.
-- Record snapshot compatibility metadata separately from generic image metadata.
+The remaining work to make this a full production image builder is tracked in
+GitHub issue #6.
