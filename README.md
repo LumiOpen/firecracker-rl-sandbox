@@ -234,11 +234,15 @@ serializes reset/release inside a pool.
 
 | phase | wall time |
 | --- | ---: |
+| **Startup** | |
 | create 100-VM pool | 2.741 s |
+| **Steady State** | |
 | allocate 100 sandboxes | 64 ms |
 | run 100 Python commands | 173 ms |
 | release/reset 100 sandboxes* | 7.981 s |
+| **Shutdown** | |
 | close pool | 11.763 s |
+| **Total** | |
 | total lifecycle | 23.793 s |
 
 *: There is currently a temporary lock around this operation to avoid a
