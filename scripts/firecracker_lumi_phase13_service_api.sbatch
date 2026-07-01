@@ -19,7 +19,7 @@ SRC_ROOT="${SRC_ROOT:-${BASE_ROOT}/phase13-src-2026-07-01}"
 RUN_ROOT="${RUN_ROOT:-${BASE_ROOT}/p13-${SLURM_JOB_ID}}"
 RETURN_DIR="${RETURN_DIR:-${SRC_ROOT}/return/2026-07-01-firecracker-lumi-phase13-service-api}"
 KERNEL_PATH="${KERNEL_PATH:-${BASE_ROOT}/kernels/linux-6.1.174-tun-19627901/vmlinux}"
-FIRECRACKER_BIN="${FIRECRACKER_BIN:-${BASE_ROOT}/cache/firecracker-v1.16.0-x86_64}"
+FIRECRACKER_BIN="${FIRECRACKER_BIN:-${BASE_ROOT}/cache/firecracker/firecracker-v1.16.0-x86_64}"
 ROOTFS_PATH="${ROOTFS_PATH:-${BASE_ROOT}/rootfs/ubuntu-24.04-phase5-production-comparator-v1-8215068d1c73bdfa/rootfs.ext4}"
 
 mkdir -p "$RUN_ROOT" "$RETURN_DIR" logs reports

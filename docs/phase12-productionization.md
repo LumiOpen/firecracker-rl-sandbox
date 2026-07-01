@@ -67,7 +67,7 @@ export BASE_ROOT="${BASE_ROOT:-/scratch/${PROJECT}/users/${USER}/firecracker-ben
 export RUN_ROOT="${RUN_ROOT:-${BASE_ROOT}/service-run-${SLURM_JOB_ID:-manual}}"
 export KERNEL_PATH="${KERNEL_PATH:-${BASE_ROOT}/kernels/linux-6.1.174-tun-19627901/vmlinux}"
 export ROOTFS_PATH="${ROOTFS_PATH:-${BASE_ROOT}/rootfs/python-coding.ext4}"
-export FIRECRACKER_BIN="${FIRECRACKER_BIN:-${BASE_ROOT}/cache/firecracker}"
+export FIRECRACKER_BIN="${FIRECRACKER_BIN:-${BASE_ROOT}/cache/firecracker/firecracker-v1.16.0-x86_64}"
 
 mkdir -p "$RUN_ROOT"
 PYTHONPATH=scripts:. python3 scripts/firecracker_pool_service.py \

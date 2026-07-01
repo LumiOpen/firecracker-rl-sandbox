@@ -79,7 +79,7 @@ PYTHONPATH=scripts:. python3 scripts/firecracker_pool_service.py \
   --backend firecracker \
   --listen 127.0.0.1:8765 \
   --pool-size 8 \
-  --firecracker /path/to/firecracker \
+  --firecracker /path/to/firecracker-v1.16.0-x86_64 \
   --kernel /path/to/vmlinux \
   --rootfs /path/to/rootfs.ext4 \
   --run-dir /scratch/$PROJECT/users/$USER/firecracker-service-run
