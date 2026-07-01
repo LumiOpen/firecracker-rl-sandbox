@@ -1,0 +1,38 @@
+name: base
+version: 0.1
+arch: x86_64
+distribution:
+  family: ubuntu
+  release: noble
+kernel:
+  source: linux-lts
+  config: firecracker-minimal-vsock
+devices:
+  - serial
+  - virtio-block
+  - virtio-vsock
+network:
+  default: deny
+rootfs:
+  logical_size_mb: 2048
+  base_mode: read_only
+  workspace_mode: tmpfs
+  workspace_size_mb: 512
+packages:
+  apt:
+    - bash
+    - ca-certificates
+    - coreutils
+    - diffutils
+    - findutils
+    - gawk
+    - grep
+    - gzip
+    - patch
+    - procps
+    - sed
+    - tar
+agent:
+  transport: vsock
+  port: 9000
+  pid1: true

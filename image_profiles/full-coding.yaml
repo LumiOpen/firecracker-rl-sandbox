@@ -1,0 +1,52 @@
+name: full-coding
+version: 0.1
+extends: python-coding
+arch: x86_64
+distribution:
+  family: ubuntu
+  release: noble
+kernel:
+  source: linux-lts
+  config: firecracker-minimal-vsock
+devices:
+  - serial
+  - virtio-block
+  - virtio-vsock
+network:
+  default: deny
+rootfs:
+  logical_size_mb: 6144
+  base_mode: read_only
+  workspace_mode: tmpfs
+  workspace_size_mb: 512
+packages:
+  apt:
+    - bash
+    - ca-certificates
+    - coreutils
+    - curl
+    - diffutils
+    - file
+    - findutils
+    - gawk
+    - g++
+    - gcc
+    - git
+    - grep
+    - gzip
+    - make
+    - patch
+    - procps
+    - python3
+    - python3-pip
+    - python3-pytest
+    - python3-venv
+    - sed
+    - strace
+    - tar
+    - unzip
+    - xz-utils
+agent:
+  transport: vsock
+  port: 9000
+  pid1: true

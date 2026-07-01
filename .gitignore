@@ -1,0 +1,31 @@
+.DS_Store
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+venv/
+dist/
+build/
+
+# Generated local/LUMI artifacts.
+logs/
+reports/
+handoff/
+handoffs/
+return/
+*.out
+*.err
+
+# Firecracker runtime/image outputs can be very large.
+vm-*/
+*.ext4
+*.qcow2
+*.raw
+*.img
+*.snap
+*.mem
+*.state
+firecracker.tgz
