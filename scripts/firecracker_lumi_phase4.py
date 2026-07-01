@@ -443,7 +443,7 @@ class Phase4VM:
         self.dir = self.base_dir / "vm-{}".format(vm_id)
         sock_hash = hashlib.sha1("{}-{}-{}".format(os.getpid(), base_dir, vm_id).encode()).hexdigest()[:16]
         self.sock = Path(tempfile.gettempdir()) / "fc-phase4-{}-{}.sock".format(os.environ.get("SLURM_JOB_ID", "local"), sock_hash)
-        self.vsock_uds = self.dir / "v.sock"
+        self.vsock_uds = Path(tempfile.gettempdir()) / "fc-vs-{}-{}.sock".format(os.environ.get("SLURM_JOB_ID", "local"), sock_hash)
         self.log = self.dir / "firecracker.log"
         self.proc = None
         self.q = queue.Queue()
@@ -552,6 +552,11 @@ class Phase4VM:
         if self.sock.exists():
             try:
                 self.sock.unlink()
+            except Exception:
+                pass
+        if self.vsock_uds.exists():
+            try:
+                self.vsock_uds.unlink()
             except Exception:
                 pass
 

@@ -220,6 +220,7 @@ class PoolRecord:
         self.created_at = time.time()
         self.draining = False
         self.metrics = collections_counter()
+        self.operation_lock = threading.RLock()
 
 
 class SessionRecord:
@@ -358,9 +359,11 @@ class PoolService:
 
     def reset_session(self, session_id: str) -> dict[str, Any]:
         rec = self.require_session(session_id)
-        resp = rec.session.reset(validate=True)
+        pool_record = self.require_pool(rec.pool_id)
+        with pool_record.operation_lock:
+            resp = rec.session.reset(validate=True)
         rec.metrics.append({"op": "reset", "ok": resp.get("ok"), "total_recycle_ready_ms": resp.get("total_recycle_ready_ms")})
-        self.pools[rec.pool_id].metrics["reset"] += 1
+        pool_record.metrics["reset"] += 1
         self.request_counts["reset"] += 1
         return resp
 
@@ -371,8 +374,10 @@ class PoolService:
             rec = self.sessions.pop(session_id, None)
         if rec is None:
             return {"ok": True, "already_closed": True}
-        resp = rec.session.release(reset=True)
-        self.pools[rec.pool_id].metrics["release"] += 1
+        pool_record = self.require_pool(rec.pool_id)
+        with pool_record.operation_lock:
+            resp = rec.session.release(reset=True)
+        pool_record.metrics["release"] += 1
         self.request_counts["release"] += 1
         return {"ok": True, "sandbox_id": session_id, "release": resp, "requested_strategy": strategy}
 
@@ -382,12 +387,13 @@ class PoolService:
     def close_pool(self, pool_id: str) -> dict[str, Any]:
         record = self.require_pool(pool_id)
         record.draining = True
-        for session_id, rec in list(self.sessions.items()):
-            if rec.pool_id == pool_id:
-                self.close_session(session_id)
-        record.pool.close()
-        with self.lock:
-            self.pools.pop(pool_id, None)
+        with record.operation_lock:
+            for session_id, rec in list(self.sessions.items()):
+                if rec.pool_id == pool_id:
+                    self.close_session(session_id)
+            record.pool.close()
+            with self.lock:
+                self.pools.pop(pool_id, None)
         return {"ok": True, "pool_id": pool_id}
 
     def transcript(self, session_id: str) -> dict[str, Any]:
@@ -547,6 +553,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 
 class JsonServer(http.server.ThreadingHTTPServer):
+    daemon_threads = True
+    request_queue_size = 1024
+
     def __init__(self, address: tuple[str, int], handler: type[Handler], service: PoolService, auth_token: str | None, quiet: bool):
         super().__init__(address, handler)
         self.service = service

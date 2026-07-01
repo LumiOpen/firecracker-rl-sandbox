@@ -1,11 +1,11 @@
 """Python API for Firecracker RL sandbox experiments.
 
-The service-backed classes are the production direction. LocalPool is a
-subprocess-backed development helper and is not an isolation boundary.
+LocalPool runs real Firecracker microVMs in-process. ServiceClient talks to a
+standalone service that owns Firecracker pools.
 """
 
 from .client import CommandResult, ProcessHandle, Sandbox, ServiceClient, ServicePool
-from .local import LocalPool
+from .local import LocalPool, SubprocessPool
 
 __all__ = [
     "CommandResult",
@@ -14,4 +14,5 @@ __all__ = [
     "Sandbox",
     "ServiceClient",
     "ServicePool",
+    "SubprocessPool",
 ]

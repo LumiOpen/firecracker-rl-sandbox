@@ -64,6 +64,7 @@ class ServiceClient:
         backend: str | None = None,
         mem_mib: int | None = None,
         vcpus: int | None = None,
+        network: str | None = None,
     ) -> "ServicePool":
         payload: dict[str, Any] = {"pool_id": pool_id, "profile": profile, "size": size}
         if backend is not None:
@@ -72,6 +73,8 @@ class ServiceClient:
             payload["mem_mib"] = mem_mib
         if vcpus is not None:
             payload["vcpus"] = vcpus
+        if network is not None:
+            payload["network"] = network
         self.request("POST", "/v1/pools", payload)
         return ServicePool(self, pool_id=pool_id, profile=profile)
 
@@ -117,10 +120,13 @@ class ServicePool:
         self.profile = profile
 
     def allocate(self, *, task_id: str | None = None, queue_timeout_ms: int = 30000) -> "Sandbox":
+        payload: dict[str, Any] = {"pool_id": self.pool_id, "profile": self.profile, "queue_timeout_ms": queue_timeout_ms}
+        if task_id is not None:
+            payload["task_id"] = task_id
         response = self.client.request(
             "POST",
             "/v1/sandboxes",
-            {"pool_id": self.pool_id, "profile": self.profile, "task_id": task_id, "queue_timeout_ms": queue_timeout_ms},
+            payload,
         )
         return Sandbox(self.client, response["sandbox_id"], pool_id=self.pool_id, profile=self.profile)
 
@@ -215,6 +221,13 @@ class ProcessHandle:
             payload,
         )
         return CommandResult.from_response(response)
+
+    def write(self, data: bytes | str) -> dict[str, Any]:
+        return self.sandbox.client.request(
+            "POST",
+            f"/v1/sandboxes/{self.sandbox.sandbox_id}/processes/{self.process_id}/write",
+            {"stdin_b64": _b64encode(_to_bytes(data))},
+        )
 
     def close_stdin(self) -> dict[str, Any]:
         return self.sandbox.client.request(
