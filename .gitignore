@@ -9,10 +9,6 @@ __pycache__/
 venv/
 dist/
 build/
-mcq_checks/data/
-
-# Downloaded eval sets checked by mcq_checks/check_mcq.py.
-mcq_checks/data/
 
 # Generated local/LUMI artifacts.
 logs/
